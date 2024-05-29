@@ -1,12 +1,12 @@
 # GetBarcode2of5
 
-This Microsoft Excel VBA module has a function named 'GetBarcode2of5()' and a substance named 'ConvertSelected2Barcode'. 
+This Microsoft Excel VBA module has a function named ``GetBarcode2of5()`` and a subroutine named ``ConvertSelected2Barcode``. 
 
 ## Import to Excel
 
-There is a file of 'Decimal2Barcode_Module.bas'. You can download this file; access to the 'Visual Basic' in Excel. Right click the project tree window, and select 'Import File'.
+There is a file of **Decimal2Barcode_Module.bas**. Access to the 'Visual Basic' in Excel, then right click the project tree window, and select ``Import File``.
 
-You will see the 'ConvertSelected2Barcode' displayed in your Marco. There is a function in any cells after you typed '=GetBarcode2of5'.
+You will see the ``ConvertSelected2Barcode`` displayed in your Marco. A function called ``GetBarcode2of5`` will pop up on any cells.
 
 ## Usage
 
