@@ -1,0 +1,174 @@
+Option Explicit
+
+Private BarcodeArray() As String
+Private BytesArray() As String
+Private Const NARROW_GAP As Single = 1
+Private Const THICK_LINE As Single = 4
+Private LineStartX As Single, LineStartY As Single, LineEndY As Single
+Private CurrentWorksheet As Worksheet
+Private Lines As Collection
+
+Private Function NewLine(StartX, Optional BolThick As Boolean) As Shape
+' Draw the line
+Set NewLine = CurrentWorksheet.Shapes.AddLine(StartX, LineStartY, StartX, LineEndY)
+With NewLine.line
+    If BolThick Then
+        .Weight = THICK_LINE ' Adjust the thickness as needed for a thick line
+    Else
+        .Weight = NARROW_GAP ' Adjust the thickness as needed for a thin line
+    End If
+    .ForeColor.RGB = RGB(0, 0, 0)
+End With
+End Function
+
+Private Sub DrawBarcode(inputString As String)
+Dim i, offset
+offset = LineStartX
+For i = 1 To Len(inputString)
+    Select Case Mid(inputString, i, 1)
+        Case "0"
+            offset = offset + NARROW_GAP / 2
+            Lines.Add NewLine(offset, False) ' 0 draws the thin line.
+            offset = offset + NARROW_GAP + NARROW_GAP / 2
+        Case "1"
+            offset = offset + THICK_LINE / 2
+            Lines.Add NewLine(offset, True) ' 1 draws the thick line.
+            offset = offset + NARROW_GAP + THICK_LINE / 2
+        Case " "
+            'Others draw nothing such as a space.
+            offset = offset + NARROW_GAP * 2
+    End Select
+Next i
+End Sub
+
+Private Function CombineBytes() As String
+Dim i, str_tmp As String, new_byte
+For i = 1 To UBound(BytesArray)
+    If Len(str_tmp) = 0 Then
+        str_tmp = BytesArray(i)
+    Else
+        ' Cut the tail 2 byte.
+        str_tmp = Left(str_tmp, Len(str_tmp) - 2)
+        ' Cut the head 2 byte.
+        new_byte = Right(BytesArray(i), Len(BytesArray(i)) - 2)
+        str_tmp = str_tmp + new_byte
+    End If
+Next
+CombineBytes = str_tmp
+End Function
+
+Private Function ConvertDigits2Byte(Digits2 As String) As String
+Dim barcode_bytes As String
+Select Case Left(Digits2, 1)
+    Case "0"
+        barcode_bytes = "000011010"
+    Case "1"
+        barcode_bytes = "001000110"
+    Case "2"
+        barcode_bytes = "000100110"
+    Case "3"
+        barcode_bytes = "001100010"
+    Case "4"
+        barcode_bytes = "000010110"
+    Case "5"
+        barcode_bytes = "001010010"
+    Case "6"
+        barcode_bytes = "000110010"
+    Case "7"
+        barcode_bytes = "000001110"
+    Case "8"
+        barcode_bytes = "001001010"
+    Case "9"
+        barcode_bytes = "000101010"
+End Select
+' Insert gaps based on the right digit
+Select Case Right(Digits2, 1)
+    Case "0"
+        ConvertDigits2Byte = InsertGaps(barcode_bytes, 5, 6)
+    Case "1"
+        ConvertDigits2Byte = InsertGaps(barcode_bytes, 3, 7)
+    Case "2"
+        ConvertDigits2Byte = InsertGaps(barcode_bytes, 4, 7)
+    Case "3"
+        ConvertDigits2Byte = InsertGaps(barcode_bytes, 3, 4)
+    Case "4"
+        ConvertDigits2Byte = InsertGaps(barcode_bytes, 5, 7)
+    Case "5"
+        ConvertDigits2Byte = InsertGaps(barcode_bytes, 3, 5)
+    Case "6"
+        ConvertDigits2Byte = InsertGaps(barcode_bytes, 4, 5)
+    Case "7"
+        ConvertDigits2Byte = InsertGaps(barcode_bytes, 6, 7)
+    Case "8"
+        ConvertDigits2Byte = InsertGaps(barcode_bytes, 3, 6)
+    Case "9"
+        ConvertDigits2Byte = InsertGaps(barcode_bytes, 4, 6)
+End Select
+End Function
+
+Private Function InsertGaps(barcode_bytes As String, pos1 As Integer, pos2 As Integer) As String
+Dim result As String
+Dim i As Integer
+result = ""
+For i = 1 To Len(barcode_bytes)
+    result = result & Mid(barcode_bytes, i, 1)
+    If i = pos1 Or i = pos2 Then
+        result = result & " "
+    End If
+Next i
+InsertGaps = result
+End Function
+
+Function GetBarcode2of5(BarcodeNumber As Currency, Optional CurrentCell As Range) As String
+If BarcodeNumber = 0 Then Exit Function
+Dim current_cell As Range
+Dim barcode_string As String
+If CurrentCell Is Nothing Then
+    Set current_cell = ActiveCell
+Else
+    Set current_cell = CurrentCell
+End If
+Set CurrentWorksheet = current_cell.Parent
+barcode_string = CStr(BarcodeNumber)
+If Len(barcode_string) Mod 2 <> 0 Then
+    barcode_string = Left(barcode_string, Len(barcode_string) - 1) & "0" & Right(barcode_string, 1)
+End If
+ReDim BarcodeArray(1 To Len(barcode_string) / 2)
+Dim i, j
+j = 0
+For i = 1 To Len(barcode_string) Step 2
+    j = j + 1
+    BarcodeArray(j) = Mid(barcode_string, i, 2)
+Next
+ReDim BytesArray(1 To Len(barcode_string) / 2)
+For i = 1 To UBound(BarcodeArray)
+    BytesArray(i) = ConvertDigits2Byte(BarcodeArray(i))
+Next
+Dim barcode_bytes
+barcode_bytes = CombineBytes()
+LineStartX = current_cell.Left
+LineStartY = current_cell.Top
+LineEndY = LineStartY + current_cell.Height
+Set Lines = New Collection
+DrawBarcode (barcode_bytes)
+' Group the lines
+Dim shapeArray() As String
+ReDim shapeArray(1 To Lines.Count)
+Dim line As Shape
+For i = 1 To Lines.Count
+    shapeArray(i) = Lines.Item(i).Name
+Next i
+Dim grp As Shape
+Set grp = CurrentWorksheet.Shapes.Range(shapeArray).Group
+grp.Name = "GroupedLines" + CStr(BarcodeNumber)
+GetBarcode2of5 = CStr(BarcodeNumber)
+End Function
+
+Sub ConvertSelected2Barcode()
+Dim cell As Range
+For Each cell In Selection
+    GetBarcode2of5 cell.Value, cell
+Next
+End Sub
+
+
